@@ -1,14 +1,15 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.impl
 
 import java.io.File
 
-import akka.actor.{ Props, ActorSystem }
-import akka.testkit.{ TestActorRef, TestProbe, ImplicitSender, TestKit }
-import scala.collection.JavaConverters._
+import akka.actor.ActorSystem
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
+import com.adelegue.reactive.logstash.input.Line
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
+import scala.collection.JavaConverters._
 import scala.io.Source
 
 /**

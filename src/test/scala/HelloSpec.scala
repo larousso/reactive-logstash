@@ -1,20 +1,19 @@
 import java.io.File
 import java.util
-import java.util.concurrent.atomic.{ AtomicBoolean, AtomicReference }
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl2.Source
-import com.adelegue.reactive.logstash.input.{ FilesTailer }
+import akka.stream.scaladsl2.{FlowMaterializer, Source}
+import com.adelegue.reactive.logstash.input.FilePublisher
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.reactivestreams.{ Publisher, Subscriber, Subscription }
+import org.reactivestreams.{Publisher, Subscriber, Subscription}
 import org.scalatest._
 import play.api.libs.json.JsObject
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.concurrent.duration.DurationLong
-import scala.concurrent.{ Await, Future, Promise }
+import scala.concurrent.{Future, Promise}
 
 class HelloSpec extends FlatSpec with Matchers {
 
@@ -29,35 +28,30 @@ class HelloSpec extends FlatSpec with Matchers {
     val file: File = new File(folder, filename)
 
     implicit val system = ActorSystem("Sys")
-    val publisher: Publisher[JsObject] = FilesTailer().withFolder(folder.getAbsolutePath).withFile(filename).publisher()
-    val subsc1 = TestSubcriber(l => println(s"subsc1 $l"))
-    val subsc2 = TestSubcriber(l => println(s"subsc2 $l"))
-    publisher.subscribe(subsc1)
-    publisher.subscribe(subsc2)
+    val publisher: Publisher[JsObject] = FilePublisher().withOneSubscriber().withFolder(folder.getAbsolutePath).withFile(filename).publisher()
 
-    val subscription1 = Await.result(subsc1.subscription(), 1 second)
-    println(s"Subscription1 :  $subscription1")
-    val subscription2 = Await.result(subsc2.subscription(), 1 second)
-    println(s"Subscription2 :  $subscription2")
-    subscription1.request(5)
-    subscription1.request(15)
-    subscription2.request(10)
+
     Thread.sleep(5000L)
     file.createNewFile() shouldBe true
 
     val lines = (1 until 50).map(l => s"line$l").asJavaCollection
     FileUtils.writeLines(file, lines)
+
+    implicit val materializer = FlowMaterializer()
+    implicit val ec = system.dispatcher
+
+    Source(publisher)
+      .map(json => (json \ "message").as[String])
+      .foreach(println)(materializer)
+      .onComplete(_ => system.shutdown())
+//
+//    Source(publisher)
+//      .map(json => (json \ "message").as[String])
+//      .foreach(println)(materializer)
+//      .onComplete(_ => system.shutdown())
+
+    Thread.sleep(30000L)
     file.delete()
-    subscription2.request(10)
-
-    //Source(publisher).
-
-    Thread.sleep(20000L)
-
-    subsc1.printLines()
-    subsc2.printLines()
-
-
   }
 
   case class TestSubcriber(callback: JsObject => Unit) extends Subscriber[JsObject] {
@@ -105,6 +99,7 @@ class HelloSpec extends FlatSpec with Matchers {
 
     def printLines(): Unit = {
       println(s"Lines : [${lines.map(json => (json \ "message").as[String] ).mkString(", ")}]")
+      //println(s"Lines : [${lines.mkString(", ")}]")
     }
 
   }

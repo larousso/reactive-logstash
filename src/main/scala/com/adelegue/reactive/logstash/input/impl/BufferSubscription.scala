@@ -1,7 +1,7 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.impl
 
 import akka.actor._
-import org.reactivestreams.{Subscription, Subscriber}
+import org.reactivestreams.{Subscriber, Subscription}
 import play.api.libs.json.JsObject
 
 

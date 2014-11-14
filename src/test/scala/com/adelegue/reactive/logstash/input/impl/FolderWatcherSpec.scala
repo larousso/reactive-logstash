@@ -1,12 +1,13 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.impl
 
-import java.io.{ PrintWriter, File }
+import java.io.{File, PrintWriter}
 
-import akka.actor.{ Props, ActorRef, ActorSystem }
-import akka.testkit.{ TestProbe, TestActorRef, ImplicitSender, TestKit }
-import com.adelegue.reactive.logstash.input.FolderWatcherActor.FileInfo
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
+import com.adelegue.reactive.logstash.input.ProxyActor
+import com.adelegue.reactive.logstash.input.impl.FolderWatcherActor.FileInfo
 import com.google.common.io.Files
-import org.scalatest.{ BeforeAndAfterAll, Matchers, WordSpecLike }
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 import scala.concurrent.duration.DurationInt
 

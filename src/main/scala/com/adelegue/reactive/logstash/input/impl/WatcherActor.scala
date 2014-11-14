@@ -1,109 +1,23 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.impl
 
-import java.io.{ File, RandomAccessFile }
+import java.io.{RandomAccessFile, File}
 import java.nio.file.StandardWatchEventKinds._
-import java.nio.file._
+import java.nio.file.{WatchKey, WatchService, Path, Paths}
 import java.util.Date
 
 import akka.actor.SupervisorStrategy.Escalate
 import akka.actor._
-import com.adelegue.reactive.logstash.input.FolderWatcherActor.FileInfo
-import org.reactivestreams.{ Publisher, Subscriber, Subscription }
-import play.api.libs.json.{Json, JsNumber, JsString, JsObject}
+import play.api.libs.json.Json
 
-import scala.collection.JavaConversions._
-import scala.concurrent.duration.DurationDouble
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.duration.DurationInt
+import collection.JavaConversions._
+import scala.util.{Failure, Success, Try}
 
-object FilesTailer {
+/**
+ * Created by adelegue on 14/11/2014.
+ */
 
-  def apply()(implicit actorSystem: ActorSystem) = new FilesTailerBuilder(actorSystem, 500, None, List())
-
-  def apply(path: String)(implicit actorSystem: ActorSystem) = new FilesTailerBuilder(actorSystem, 500, Some(path), List())
-
-}
-
-class FilesTailer(actorSystem: ActorSystem, path: String, files: List[FileInfo], bufferSize: Int) extends Publisher[JsObject] {
-
-  val actor = actorSystem.actorOf(FilesTailerPublisherActor.props(path, files, bufferSize))
-
-  override def subscribe(subscriber: Subscriber[_ >: JsObject]): Unit = {
-    actor ! FilesTailerPublisherActor.Subscribe(subscriber)
-  }
-}
-
-class FilesTailerBuilder(actorSystem: ActorSystem, bufferSize: Int, path: Option[String], files: List[FileInfo]) {
-
-  def withFolder(folder: String) = new FilesTailerBuilder(actorSystem, bufferSize, Some(folder), files)
-
-  def withFile(fileName: String) = new FilesTailerBuilder(actorSystem, bufferSize, path, FileInfo(fileName) :: files)
-
-  def withBufferSize(bufferSize: Int) = new FilesTailerBuilder(actorSystem, bufferSize, path, files)
-
-  def publisher(): Publisher[JsObject] = path match {
-    case None         => throw new RuntimeException("Path missing")
-    case Some(folder) => new FilesTailer(actorSystem, folder, files, bufferSize)
-  }
-}
-
-object FilesTailerPublisherActor {
-
-  case class Subscribe(subscriber: Subscriber[_ >: JsObject])
-
-  def props(path: String, files: List[FileInfo], bufferSize: Int) = Props(classOf[FilesTailerPublisherActor], path, files, bufferSize)
-}
-
-class FilesTailerPublisherActor(path: String, files: List[FileInfo], bufferSize: Int) extends Actor with ActorLogging {
-
-  val buffer = context.actorOf(BufferActor.props(bufferSize))
-  context.watch(buffer)
-  private val watcher: ActorRef = context.actorOf(FolderWatcherActor.props(buffer, path, files))
-  context.watch(watcher)
-
-  override def receive = running(List())
-
-  def running(subscribers: List[(ActorRef, Subscriber[_ >: JsObject])]): Receive = {
-
-    case FilesTailerPublisherActor.Subscribe(subscriber) =>
-      log.debug(s"Subscribing $subscriber")
-
-      if (subscribers.exists(_._2 equals subscriber)) {
-        subscriber.onError(new IllegalStateException(s"can not subscribe the same subscriber multiple times (see reactive-streams specification, rules 1.10 and 2.12"))
-      } else {
-        val subscriptionActorRef = context.actorOf(BufferSubscriptionActor.props(buffer, subscriber))
-        context.watch(subscriptionActorRef)
-        subscriber.onSubscribe(BufferSubscription(subscriber, subscriptionActorRef))
-        context.become(running((subscriptionActorRef, subscriber) :: subscribers))
-      }
-
-    case Terminated(ref) if ref equals buffer =>
-      //TODO créer un erreur dédiée.
-      subscribers.foreach(_._2.onError(new IllegalStateException))
-
-    case Terminated(ref) if ref equals watcher =>
-      subscribers.foreach(s => s._1 ! BufferSubscriptionActor.Complete)
-
-    case Terminated(ref) =>
-      context.become(running(subscribers.filterNot(_._1 equals ref)))
-
-    case _ =>
-      context.become(onErrorState(List()))
-      subscribers.foreach { s =>
-        //TODO créer un erreur dédiée.
-        s._2.onError(new IllegalStateException)
-        s._1 ! PoisonPill
-      }
-  }
-
-  def onErrorState(subscribers: List[(ActorRef, Subscriber[_ >: JsObject])]): Receive = {
-    //TODO créer un erreur dédiée.
-    case FilesTailerPublisherActor.Subscribe(subscriber) => subscriber.onError(new IllegalStateException)
-    case any                                             => log.debug(s"Unhandled message $any")
-  }
-
-}
-
-private object FolderWatcherActor {
+object FolderWatcherActor {
   case class Init()
   case object Run
   case object Next
@@ -118,6 +32,7 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
 
   override def preStart(): Unit = {
     self ! FolderWatcherActor.Init()
+    log.debug(s"FolderWatcherActor : starting with buffer $buffer")
   }
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minute) {
@@ -250,8 +165,6 @@ private object FileReaderActor extends FileReaderActorProvider {
 
 private class FileReaderActor(buffer: ActorRef) extends Actor with ActorLogging {
 
-  val bufferSize = 300
-
   override def receive: Receive = pending
 
   def pending: Receive = {
@@ -260,7 +173,7 @@ private class FileReaderActor(buffer: ActorRef) extends Actor with ActorLogging 
       Try(new RandomAccessFile(file, "r")) match {
 
         case Success(reader) =>
-          log.info(s"starting tail on file ${file.getAbsolutePath}")
+          log.info(s"starting tail on file ${file.getAbsolutePath} with buffer $buffer")
           context.become(running(file, reader, 0))
 
         case Failure(error) =>
@@ -276,12 +189,14 @@ private class FileReaderActor(buffer: ActorRef) extends Actor with ActorLogging 
       val newLines = readFile(reader, position)
       newLines
         .map{l =>
-          Json.obj(
-            "@timestamp" -> new Date().getTime,
-            "message" -> l,
-            "file" -> file.getAbsolutePath)
-        }
-        .foreach(line => buffer ! BufferActor.Entry(line))
+        Json.obj(
+          "@timestamp" -> new Date().getTime,
+          "message" -> l,
+          "file" -> file.getAbsolutePath)
+      }
+        .foreach{line =>
+        buffer ! BufferActor.Entry(line)
+      }
       context.become(running(file, reader, reader.getFilePointer))
   }
 
