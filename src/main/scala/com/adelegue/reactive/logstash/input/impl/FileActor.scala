@@ -1,17 +1,20 @@
 package com.adelegue.reactive.logstash.input.impl
 
-import java.io.{RandomAccessFile, File}
+import java.io.{ RandomAccessFile, File }
 import java.nio.file.StandardWatchEventKinds._
-import java.nio.file.{WatchKey, WatchService, Path, Paths}
+import java.nio.file.{ WatchKey, WatchService, Path, Paths }
 import java.util.Date
+import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.SupervisorStrategy.Escalate
 import akka.actor._
+import akka.persistence.{SnapshotOffer, PersistentActor}
+import com.adelegue.reactive.logstash.input.impl.FileReaderActor.PositionChanged
 import play.api.libs.json.Json
 
 import scala.concurrent.duration.DurationInt
 import collection.JavaConversions._
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 /**
  * Created by adelegue on 14/11/2014.
@@ -108,10 +111,8 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
   }
 
   def createFileListener(folder: Path, filename: String, buffer: ActorRef): ActorRef = {
-    val props: Props = fileReaderProvider.props(buffer)
-    val ref = context.actorOf(props, filename)
+    val ref = context.actorOf(fileReaderProvider.props(buffer, new File(folder.toFile.getAbsolutePath, filename)), filename)
     context.watch(ref)
-    ref ! FileReaderActor.Start(new File(folder.toFile.getAbsolutePath, filename))
     ref
   }
 
@@ -155,49 +156,78 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
 }
 
 trait FileReaderActorProvider {
-  def props(buffer: ActorRef): Props = Props(classOf[FileReaderActor], buffer)
+  def props(buffer: ActorRef, file: File): Props = Props(classOf[FileReaderActor], buffer, file)
 }
 
 private object FileReaderActor extends FileReaderActorProvider {
+  sealed trait Event
+  case class PositionChanged(position: Long)
   case class Start(file: File)
   case object FileChange
 }
 
-private class FileReaderActor(buffer: ActorRef) extends Actor with ActorLogging {
+private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentActor with ActorLogging {
 
-  override def receive: Receive = pending
+  override def persistenceId: String = s"file-watcher-${file.getAbsolutePath}"
 
-  def pending: Receive = {
+  var mayBeReader: Option[RandomAccessFile] = None
 
-    case FileReaderActor.Start(file) =>
-      Try(new RandomAccessFile(file, "r")) match {
+  var position: Long = 0
 
-        case Success(reader) =>
-          log.info(s"starting tail on file ${file.getAbsolutePath} with buffer $buffer")
-          context.become(running(file, reader, 0))
 
-        case Failure(error) =>
-          error.printStackTrace()
-          log.error(s"Error creating reader for $file", error)
-      }
+
+  override def preStart(): Unit = {
+    super.preStart()
+    Try(new RandomAccessFile(file, "r")) match {
+      case Success(reader) =>
+        log.info(s"starting tail on file ${file.getAbsolutePath} with buffer $buffer")
+        mayBeReader = Some(reader)
+
+      case Failure(error) =>
+        error.printStackTrace()
+        val message: String = s"Error creating reader for $file"
+        log.error(message, error)
+        throw new RuntimeException(message, error)
+    }
   }
 
-  def running(file: File, reader: RandomAccessFile, position: Long): Receive = {
+  override def receiveRecover: Receive = {
+    case PositionChanged(newPosition) =>
+      position = newPosition
+    case SnapshotOffer(_, snapshot: Long) =>
+      position = snapshot
+  }
+
+  override def receiveCommand: Receive = {
+    case FileReaderActor.FileChange if (position > 0) && (position > file.length) =>
+      position = 0
+      self ! FileReaderActor.FileChange
 
     case FileReaderActor.FileChange =>
-      log.debug(s"File $file changes, reading lines from $position to ...")
-      val newLines = readFile(reader, position)
-      newLines
-        .map{l =>
-        Json.obj(
-          "@timestamp" -> new Date().getTime,
-          "message" -> l,
-          "file" -> file.getAbsolutePath)
+      mayBeReader match {
+        case None =>
+          val message: String = s"Reader doesn't exist"
+          log.error(message)
+          throw new IllegalStateException(message)
+        case Some(reader) =>
+          log.debug(s"File $file changes, reading lines from $position to ...")
+          val newLines = readFile(reader, position)
+          newLines
+            .map { l =>
+            Json.obj(
+              "@timestamp" -> new Date().getTime,
+              "message" -> l,
+              "file" -> file.getAbsolutePath)
+          }
+            .foreach { line =>
+            buffer ! BufferActor.Entry(line)
+          }
+          position = reader.getFilePointer
+          persist(PositionChanged(position))(a=>Unit)
+          saveSnapshot(position)
       }
-        .foreach{line =>
-        buffer ! BufferActor.Entry(line)
-      }
-      context.become(running(file, reader, reader.getFilePointer))
+    case any => println(any)
+
   }
 
   def readFile(reader: RandomAccessFile, position: Long): List[String] = {

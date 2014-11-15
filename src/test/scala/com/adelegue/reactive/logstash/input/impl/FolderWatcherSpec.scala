@@ -43,7 +43,7 @@ class FolderWatcherSpec(_system: ActorSystem) extends TestKit(_system) with Impl
 
       val created = file.createNewFile()
       created shouldBe true
-      probe.expectMsg(60 second, FileReaderActor.Start(file))
+      //probe.expectMsg(60 second, FileReaderActor.Start(file))
       probe.expectMsg(60 second, FileReaderActor.FileChange)
 
       val writer: PrintWriter = new PrintWriter(file.getAbsolutePath, "UTF-8")
@@ -72,9 +72,10 @@ class FolderWatcherSpec(_system: ActorSystem) extends TestKit(_system) with Impl
       file1.createNewFile() shouldBe true
       file2.createNewFile() shouldBe true
 
-      probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2))
-      probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2), FileReaderActor.FileChange)
-      probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2), FileReaderActor.FileChange)
+      //probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2))
+      //probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2), FileReaderActor.FileChange)
+      //probe.expectMsgAnyOf(60 second, FileReaderActor.Start(file1), FileReaderActor.Start(file2), FileReaderActor.FileChange)
+      probe.expectMsg(60 second, FileReaderActor.FileChange)
       probe.expectMsg(60 second, FileReaderActor.FileChange)
 
       file1.delete() shouldBe true
@@ -92,5 +93,5 @@ object MockFileReader {
 }
 
 class MockFileReader(ref: ActorRef) extends FileReaderActorProvider {
-  override def props(buffer: ActorRef): Props = Props(classOf[ProxyActor], ref)
+  override def props(buffer: ActorRef, file: File): Props = Props(classOf[ProxyActor], ref)
 }

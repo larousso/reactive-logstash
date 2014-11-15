@@ -1,15 +1,14 @@
 package com.adelegue.reactive.logstash.input
 
 import akka.actor._
-import com.adelegue.reactive.logstash.input.impl.{BufferSubscription, BufferSubscriptionActor, FolderWatcherActor, BufferActor}
 import com.adelegue.reactive.logstash.input.impl.FolderWatcherActor.FileInfo
+import com.adelegue.reactive.logstash.input.impl.{ BufferActor, BufferSubscription, BufferSubscriptionActor, FolderWatcherActor }
 import org.reactivestreams.Subscriber
-import play.api.libs.json.JsObject
-
+import play.api.libs.json.JsValue
 
 object FilePublisherMultiSubscriberActor {
 
-  case class Subscribe(subscriber: Subscriber[_ >: JsObject])
+  case class Subscribe(subscriber: Subscriber[_ >: JsValue])
 
   def props(path: String, files: List[FileInfo], bufferSize: Int) = Props(classOf[FilePublisherMultiSubscriberActor], path, files, bufferSize)
 }
@@ -23,7 +22,7 @@ class FilePublisherMultiSubscriberActor(path: String, files: List[FileInfo], buf
 
   override def receive = running(List())
 
-  def running(subscribers: List[(ActorRef, Subscriber[_ >: JsObject])]): Receive = {
+  def running(subscribers: List[(ActorRef, Subscriber[_ >: JsValue])]): Receive = {
 
     case FilePublisherMultiSubscriberActor.Subscribe(subscriber) =>
       log.debug(s"Subscribing $subscriber")
@@ -56,10 +55,10 @@ class FilePublisherMultiSubscriberActor(path: String, files: List[FileInfo], buf
       }
   }
 
-  def onErrorState(subscribers: List[(ActorRef, Subscriber[_ >: JsObject])]): Receive = {
+  def onErrorState(subscribers: List[(ActorRef, Subscriber[_ >: JsValue])]): Receive = {
     //TODO créer un erreur dédiée.
     case FilePublisherMultiSubscriberActor.Subscribe(subscriber) => subscriber.onError(new IllegalStateException)
-    case any                                             => log.debug(s"Unhandled message $any")
+    case any                                                     => log.debug(s"Unhandled message $any")
   }
 
 }

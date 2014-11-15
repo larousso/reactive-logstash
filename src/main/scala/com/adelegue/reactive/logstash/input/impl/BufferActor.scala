@@ -1,13 +1,13 @@
 package com.adelegue.reactive.logstash.input.impl
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
 import com.adelegue.reactive.logstash.input.impl.BufferActor._
-import play.api.libs.json.JsObject
+import play.api.libs.json.JsValue
 
 object BufferActor {
-  case class Entry(value: JsObject)
+  case class Entry(value: JsValue)
   case class Ask(from: Long, to: Long)
-  case class Lines(list: List[JsObject], position: Long, bufferSize: Long)
+  case class Lines(list: List[JsValue], position: Long, bufferSize: Long)
   case class ErrorLinesMissing(start: Long, size: Long) extends Throwable
   case class WaitingSubscription(subscription: ActorRef, nbMissingLines: Long, currentPosition: Long)
   case object AskSize
@@ -21,12 +21,12 @@ class BufferActor(bufferSize: Int) extends Actor with ActorLogging {
 
   override def receive = buffer(List(), 0, List())
 
-  def buffer(currentBuffer: List[JsObject], start: Long, waitingList: List[BufferActor.WaitingSubscription]): Actor.Receive = {
+  def buffer(currentBuffer: List[JsValue], start: Long, waitingList: List[BufferActor.WaitingSubscription]): Actor.Receive = {
 
     //Nouvelle entree
     case Entry(elt) if currentBuffer.size < bufferSize =>
       //log.debug(s"One entry added to buffer $elt")
-      val newBuffer: List[JsObject] = elt :: currentBuffer
+      val newBuffer: List[JsValue] = elt :: currentBuffer
       //log.debug(s"NEW BUFFER ---- [ ${newBuffer.map(_.line).mkString(", ")} ]")
       context.become(buffer(newBuffer, start, handleWaitingSubscribers(elt, waitingList, start + newBuffer.size)))
 
@@ -55,8 +55,8 @@ class BufferActor(bufferSize: Int) extends Actor with ActorLogging {
 
     case Ask(from, length) if (from >= start) && (from <= start + currentBuffer.size) =>
       log.debug(s"${sender()} ask $length entries from $from, current buffer start at $start to ${start + currentBuffer.size} ")
-      val tmpBuffer: List[JsObject] = currentBuffer.reverse.drop((from - start).toInt)
-      val elementsToSend: List[JsObject] = tmpBuffer.take(adaptLengthToMaxBufferSize(length, tmpBuffer.length))
+      val tmpBuffer: List[JsValue] = currentBuffer.reverse.drop((from - start).toInt)
+      val elementsToSend: List[JsValue] = tmpBuffer.take(adaptLengthToMaxBufferSize(length, tmpBuffer.length))
       val elementsToSendSize = elementsToSend.size
       val currentPosition: Long = from + elementsToSendSize
       if (elementsToSendSize < length) {
@@ -96,7 +96,7 @@ class BufferActor(bufferSize: Int) extends Actor with ActorLogging {
     }
   }
 
-  def handleWaitingSubscribers(elt: JsObject, waitingSubscribers: List[BufferActor.WaitingSubscription], totalSize: Long): List[BufferActor.WaitingSubscription] = {
+  def handleWaitingSubscribers(elt: JsValue, waitingSubscribers: List[BufferActor.WaitingSubscription], totalSize: Long): List[BufferActor.WaitingSubscription] = {
     waitingSubscribers
       .map { waitingSubscriber =>
         waitingSubscriber.subscription ! BufferActor.Lines(List(elt), waitingSubscriber.currentPosition + 1, totalSize)

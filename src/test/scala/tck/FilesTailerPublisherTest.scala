@@ -10,7 +10,7 @@ import org.reactivestreams.{Publisher, Subscriber, Subscription}
 import org.reactivestreams.tck.{PublisherVerification, TestEnvironment}
 import org.scalatest.testng.TestNGSuiteLike
 import org.testng.annotations.AfterClass
-import play.api.libs.json.JsObject
+import play.api.libs.json.JsValue
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
@@ -21,7 +21,7 @@ import scala.util.Random
  * Created by adelegue on 05/11/2014.
  */
 class FilesTailerPublisherTest(val system: ActorSystem, env: TestEnvironment, publisherShutdownTimeoutMillis: Long)
-    extends PublisherVerification[JsObject](env, publisherShutdownTimeoutMillis)
+    extends PublisherVerification[JsValue](env, publisherShutdownTimeoutMillis)
     with TestNGSuiteLike {
 
   def this() {
@@ -38,11 +38,11 @@ class FilesTailerPublisherTest(val system: ActorSystem, env: TestEnvironment, pu
 
   override def skipStochasticTests(): Boolean = true
 
-  override def createPublisher(elements: Long): Publisher[JsObject] = {
+  override def createPublisher(elements: Long): Publisher[JsValue] = {
     implicit val as = system
     val ramdom = Random.nextInt(10000)
     val fileName: String = s"test$elements-$ramdom.txt"
-    val publisher: Publisher[JsObject] = FilePublisher(folder.getAbsolutePath).withFile(fileName).publisher()
+    val publisher: Publisher[JsValue] = FilePublisher(folder.getAbsolutePath).withFile(fileName).publisher()
     Thread.sleep(5000L)
     val lines = (0 until elements.toInt).map(i => s"line$i").asJavaCollection
     val file: File = new File(folder.getAbsolutePath, fileName)
@@ -57,7 +57,7 @@ class FilesTailerPublisherTest(val system: ActorSystem, env: TestEnvironment, pu
     system.scheduler.scheduleOnce(duration, ref, FileDeleter.Delete(file))(system.dispatcher)
   }
 
-  override def createErrorStatePublisher(): Publisher[JsObject] = null
+  override def createErrorStatePublisher(): Publisher[JsValue] = null
 
   @AfterClass
   def shutdownActorSystem(): Unit = {

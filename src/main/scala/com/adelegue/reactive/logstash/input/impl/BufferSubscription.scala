@@ -1,15 +1,14 @@
 package com.adelegue.reactive.logstash.input.impl
 
 import akka.actor._
-import org.reactivestreams.{Subscriber, Subscription}
-import play.api.libs.json.JsObject
-
+import org.reactivestreams.{ Subscriber, Subscription }
+import play.api.libs.json.JsValue
 
 object BufferSubscription {
-  def apply(subscriber: Subscriber[_ >: JsObject], subscriptionActorRef: ActorRef) = new BufferSubscription(subscriber, subscriptionActorRef)
+  def apply(subscriber: Subscriber[_ >: JsValue], subscriptionActorRef: ActorRef) = new BufferSubscription(subscriber, subscriptionActorRef)
 }
 
-class BufferSubscription(subscriber: Subscriber[_ >: JsObject], subscriptionActorRef: ActorRef) extends Subscription {
+class BufferSubscription(subscriber: Subscriber[_ >: JsValue], subscriptionActorRef: ActorRef) extends Subscription {
   val maxRequestedElements: Long = java.lang.Long.MAX_VALUE
 
   override def cancel(): Unit = subscriptionActorRef ! BufferSubscriptionActor.Cancel
@@ -29,11 +28,11 @@ object BufferSubscriptionActor {
   case object Complete
   case object Cancel
 
-  def props(buffer: ActorRef, subscriber: Subscriber[_ >: JsObject]) = Props(classOf[BufferSubscriptionActor], buffer, subscriber)
+  def props(buffer: ActorRef, subscriber: Subscriber[_ >: JsValue]) = Props(classOf[BufferSubscriptionActor], buffer, subscriber)
 
 }
 
-class BufferSubscriptionActor(buffer: ActorRef, subscriber: Subscriber[JsObject]) extends Actor with ActorLogging {
+class BufferSubscriptionActor(buffer: ActorRef, subscriber: Subscriber[JsValue]) extends Actor with ActorLogging {
 
   val messageMaxRequestReached: String = "The max number of element requested (2^63) is reached"
   val stateRunning = "WaitingRequest"
@@ -138,13 +137,13 @@ class BufferSubscriptionActor(buffer: ActorRef, subscriber: Subscriber[JsObject]
       onError(subscriber, new IllegalStateException(s"[$state] - Error lines are missing from buffer, Current position $currentPosition, currentNbRequested : $currentNbRequested"))
   }
 
-  def onError(subscriber: Subscriber[JsObject], exception: Exception) = {
+  def onError(subscriber: Subscriber[JsValue], exception: Exception) = {
     log.error(s"Error on subscription $self", exception)
     subscriber.onError(exception)
     self ! PoisonPill
   }
 
-  def onComplete(subscriber: Subscriber[JsObject]) = {
+  def onComplete(subscriber: Subscriber[JsValue]) = {
     log.debug(s"calling onComplete on subscriber $subscriber")
     subscriber.onComplete()
     self ! PoisonPill

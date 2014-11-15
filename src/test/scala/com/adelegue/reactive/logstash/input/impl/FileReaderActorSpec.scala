@@ -5,9 +5,11 @@ import java.io.File
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
 import com.adelegue.reactive.logstash.input.Line
+import com.adelegue.reactive.logstash.input.impl.BufferActor.Entry
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import play.api.libs.json.JsValue
 
 import scala.collection.JavaConverters._
 import scala.io.Source
@@ -34,16 +36,23 @@ class FileReaderActorSpec(_system: ActorSystem) extends TestKit(_system) with Im
       FileUtils.writeLines(file, strings.asJavaCollection)
 
       val buffer = TestProbe()
-      val ref = TestActorRef(FileReaderActor.props(buffer.ref))
-
-      ref ! FileReaderActor.Start(file)
+      val ref = system.actorOf(FileReaderActor.props(buffer.ref, file))
 
       ref ! FileReaderActor.FileChange
 
-      buffer.expectMsg(BufferActor.Entry(Line("line1", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line2", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line3", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line4", file.getAbsolutePath)))
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line1", file.getAbsolutePath)
+        case msg => println(msg)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line2", file.getAbsolutePath)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line3", file.getAbsolutePath)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line4", file.getAbsolutePath)
+      }
 
       val newLines: List[String] = List("line5", "line6", "line7", "line8")
       FileUtils.writeLines(file, newLines.asJavaCollection, true)
@@ -51,12 +60,24 @@ class FileReaderActorSpec(_system: ActorSystem) extends TestKit(_system) with Im
       Source.fromFile(file).getLines().toList shouldBe strings ::: newLines
 
       ref ! FileReaderActor.FileChange
-
-      buffer.expectMsg(BufferActor.Entry(Line("line5", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line6", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line7", file.getAbsolutePath)))
-      buffer.expectMsg(BufferActor.Entry(Line("line8", file.getAbsolutePath)))
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line5", file.getAbsolutePath)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line6", file.getAbsolutePath)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line7", file.getAbsolutePath)
+      }
+      buffer.expectMsgPF(){
+        case Entry(json) => validateJson(json, "line8", file.getAbsolutePath)
+      }
 
     }
+  }
+
+  def validateJson(json: JsValue, message: String, file: String): Unit = {
+    (json \ "message").as[String] shouldBe message
+    (json \ "file").as[String] shouldBe file
   }
 }
