@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import akka.actor.ActorSystem
 import akka.stream.FlowMaterializer
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{SubscriberSink, Source}
 import com.adelegue.reactive.logstash.input.publisher.{FilePublisher, RedisPublisher}
 import com.adelegue.reactive.logstash.output.{ElasticSearchOutput, RedisOutput}
 import com.google.common.io.Files
@@ -34,7 +34,7 @@ class MainSpec extends FlatSpec with Matchers {
     implicit val ec = system.dispatcher
 
     Source(FilePublisher(folder.getAbsolutePath, List(filename)))
-      .foreach(RedisOutput().apply(_).map(_ => Unit))
+      .runWith(SubscriberSink(RedisOutput()))
 
 
     Thread.sleep(5000L)
@@ -47,10 +47,7 @@ class MainSpec extends FlatSpec with Matchers {
       //Maj de la date
       .map(json => json.as[JsObject] ++ Json.obj("@timestamp" -> new Date().getTime))
       .map(json => json.as[JsObject] ++ Json.obj("message" ->  s"${(json \ "message").as[String]} modified" ) )
-      .foreach(ElasticSearchOutput("localhost", 9200).apply(_).map(_ => ()))
-
-      .onComplete(_ => system.shutdown())
-
+      .runWith(SubscriberSink(ElasticSearchOutput("localhost", 9200)))
 
 
     Thread.sleep(30000L)

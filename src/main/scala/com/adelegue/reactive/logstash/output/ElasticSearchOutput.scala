@@ -2,14 +2,17 @@ package com.adelegue.reactive.logstash.output
 
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.atomic.AtomicReference
 
-import com.adelegue.reactive.logstash.output.elasticsearch.{Index, Client}
+import akka.stream.scaladsl.Sink
+import com.adelegue.reactive.logstash.output.elasticsearch.Client
+import org.reactivestreams.{Subscription, Subscriber}
 import play.api.libs.json.{JsNull, JsValue, Json}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.io.Source
-import scala.util.{Success, Try}
+import scala.util.Try
 
 /**
  *
@@ -18,7 +21,7 @@ import scala.util.{Success, Try}
 
 
 object ElasticSearchOutput {
-  def apply(host: String = "localhost", port: Int = 9200, index: String = "'logstash'-yyyy.MM.dd", typeName: Option[String] = None)(implicit ec: ExecutionContext) = {
+  def apply(host: String = "localhost", port: Int = 9200, index: String = "'logstash'-yyyy.MM.dd", typeName: Option[String] = None)(implicit ec: ExecutionContext): Subscriber[JsValue] = {
     val output: ElasticSearchOutput = new ElasticSearchOutput(host, port, index, typeName)(ec)
     Await.result(output.setUp(), 1 second)
     output
@@ -26,7 +29,7 @@ object ElasticSearchOutput {
 }
 
 
-class ElasticSearchOutput(host: String, port: Int, index: String, typeName: Option[String] = None)(implicit ec: ExecutionContext) extends Output{
+class ElasticSearchOutput(host: String, port: Int, index: String, typeName: Option[String] = None)(implicit ec: ExecutionContext) extends OutputSubscriber[JsValue] {
 
   val client = Client(host, port)
 
@@ -42,7 +45,7 @@ class ElasticSearchOutput(host: String, port: Int, index: String, typeName: Opti
 
   val indexPattern = new SimpleDateFormat(index)
 
-  override def apply(message: JsValue): Future[Unit] = {
+  override def output(message: JsValue): Future[Unit] = {
     val indexName = indexPattern.format(new Date())
     client.createIndex(indexName, typeName.getOrElse("logs"))().flatMap{esIndex =>
       val value: Future[JsValue] = esIndex.saveAsJsValue(message)
@@ -55,4 +58,7 @@ class ElasticSearchOutput(host: String, port: Int, index: String, typeName: Opti
       value.map(resp => ())
     }
   }
+
+
 }
+

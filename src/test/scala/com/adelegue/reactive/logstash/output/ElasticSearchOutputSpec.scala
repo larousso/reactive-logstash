@@ -26,8 +26,8 @@ class ElasticSearchOutputSpec extends FlatSpec with Matchers {
   }
 
   "ES output" should "index document" in {
-    val output = ElasticSearchOutput("localhost", 9200)
-    val apply: Future[Unit] = output.apply(Json.obj("test" -> "test message"))
+    val output = new ElasticSearchOutput("localhost", 9200, "'logstash'-yyyy.MM.dd")
+    val apply: Future[Unit] = output.output(Json.obj("test" -> "test message"))
 
     Await.result(apply, 1 second)
 

@@ -116,7 +116,7 @@ object Data {
 }
 
 object Index {
-  def apply(indexName: String, nameType: String, host: String = "localhost", port: Int = 9300)(indexSettings : JsValue = JsNull, settings : JsValue = JsNull, mappings: JsValue = JsNull) = {
+  def apply(indexName: String, nameType: String, host: String = "localhost", port: Int = 9300)(indexSettings : JsValue = JsNull, settings : JsValue = JsNull, mappings: JsValue = JsNull)(implicit ec: ExecutionContext) = {
     Await.result(Client(host, port).createIndex(indexName, nameType)(indexSettings, settings, mappings), 2 seconds)
   }
 }
