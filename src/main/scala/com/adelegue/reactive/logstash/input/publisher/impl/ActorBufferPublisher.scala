@@ -1,4 +1,4 @@
-package com.adelegue.reactive.logstash.input.impl
+package com.adelegue.reactive.logstash.input.publisher.impl
 
 import akka.actor._
 import akka.stream.actor.ActorPublisher

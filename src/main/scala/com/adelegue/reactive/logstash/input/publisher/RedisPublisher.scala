@@ -1,11 +1,11 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.publisher
 
 import akka.actor._
 import akka.stream.actor.ActorPublisher
-import com.adelegue.reactive.logstash.input.RedisPublisher.Poll
-import com.adelegue.reactive.logstash.input.impl.{ FolderWatcherActor, ActorBufferPublisher, BufferActor }
+import com.adelegue.reactive.logstash.input.publisher.RedisPublisher.Poll
+import com.adelegue.reactive.logstash.input.publisher.impl.{ActorBufferPublisher, BufferActor}
 import org.reactivestreams.Publisher
-import play.api.libs.json.{ JsValue, Json }
+import play.api.libs.json.{JsValue, Json}
 import scredis.Redis
 
 import scala.concurrent.duration.DurationDouble
@@ -14,6 +14,7 @@ import scala.concurrent.duration.DurationDouble
  * Created by adelegue on 14/11/2014.
  */
 object RedisPublisher {
+
   case object Poll
 
   def props(redis: Redis, buffer: ActorRef) = Props(classOf[RedisPublisherActor], redis, buffer)
@@ -50,7 +51,7 @@ class RedisPublisherActor(redis: Redis, buffer: ActorRef) extends Actor with Act
 
   def retryLater(): Unit = {
     implicit val ctx = context.system.dispatcher
-    context.system.scheduler.scheduleOnce(500 millisecond, self, Poll)(ctx)
+    context.system.scheduler.scheduleOnce(500 milliseconds, self, Poll)(ctx)
 
   }
 

@@ -1,11 +1,10 @@
-package com.adelegue.reactive.logstash.input.impl
+package com.adelegue.reactive.logstash.input.publisher.impl
 
 import java.io.File
 
 import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
-import com.adelegue.reactive.logstash.input.Line
-import com.adelegue.reactive.logstash.input.impl.BufferActor.Entry
+import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import com.adelegue.reactive.logstash.input.publisher.impl.BufferActor.Entry
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}

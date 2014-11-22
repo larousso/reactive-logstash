@@ -1,11 +1,11 @@
-package com.adelegue.reactive.logstash.input.impl
+package com.adelegue.reactive.logstash.input.publisher.impl
 
 import java.io.{File, PrintWriter}
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
 import com.adelegue.reactive.logstash.input.ProxyActor
-import com.adelegue.reactive.logstash.input.impl.FolderWatcherActor.FileInfo
+import com.adelegue.reactive.logstash.input.publisher.impl.FolderWatcherActor.FileInfo
 import com.google.common.io.Files
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 

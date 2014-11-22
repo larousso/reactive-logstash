@@ -14,8 +14,8 @@ libraryDependencies ++= Seq(
   "commons-io" % "commons-io" % "2.4",
   "org.reactivestreams" % "reactive-streams-spi" % "0.3",
   "org.reactivestreams" % "reactive-streams-tck" % "0.4.0",
-  "com.typesafe.akka" %% "akka-persistence-experimental" % "2.4",
-  "com.typesafe.akka" %% "akka-stream-experimental" % "0.9",
+  "com.typesafe.akka" %% "akka-stream-experimental" % "0.10",
+  "com.typesafe.play" %% "play-ws" % "2.3.6",
   "com.typesafe.play" %% "play-json" % "2.3.6",
   "com.typesafe.akka" %% "akka-testkit" % "2.3.6",
   "com.livestream" %% "scredis" % "2.0.5"

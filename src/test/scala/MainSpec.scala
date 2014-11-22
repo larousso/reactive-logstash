@@ -4,29 +4,26 @@ import java.util.Date
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl2.{FlowMaterializer, Source}
-import com.adelegue.reactive.logstash.input.{RedisPublisher, FilePublisher}
-import com.adelegue.reactive.logstash.output.RedisOutput
+import akka.stream.FlowMaterializer
+import akka.stream.scaladsl.Source
+import com.adelegue.reactive.logstash.input.publisher.{FilePublisher, RedisPublisher}
+import com.adelegue.reactive.logstash.output.{ElasticSearchOutput, RedisOutput}
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
-import org.reactivestreams.{Publisher, Subscriber, Subscription}
+import org.reactivestreams.{Subscriber, Subscription}
 import org.scalatest._
-import play.api.libs.json.{JsObject, Json, JsValue}
+import play.api.libs.json.{JsObject, JsValue, Json}
 import scredis.Redis
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.concurrent.{Future, Promise}
 
-class HelloSpec extends FlatSpec with Matchers {
-
-  "Hello" should "have tests" in {
-    true should be === true
-  }
+class MainSpec extends FlatSpec with Matchers {
 
   "test subsc" should "" in {
 
-    val redis = Redis(port=6379, host = "localhost")
+    val redis = Redis(port=6379, host="localhost")
 
     val filename = "test.txt"
     val folder: File = Files.createTempDir()
@@ -37,9 +34,7 @@ class HelloSpec extends FlatSpec with Matchers {
     implicit val ec = system.dispatcher
 
     Source(FilePublisher(folder.getAbsolutePath, List(filename)))
-      .mapAsync(RedisOutput().apply)
-      .foreach(l => Unit)
-      .onComplete(_ => system.shutdown())
+      .foreach(RedisOutput().apply(_).map(_ => Unit))
 
 
     Thread.sleep(5000L)
@@ -52,10 +47,11 @@ class HelloSpec extends FlatSpec with Matchers {
       //Maj de la date
       .map(json => json.as[JsObject] ++ Json.obj("@timestamp" -> new Date().getTime))
       .map(json => json.as[JsObject] ++ Json.obj("message" ->  s"${(json \ "message").as[String]} modified" ) )
-      //Extraction du message
-      .map(l => (l \ "message").as[String])
-      .foreach(println)
+      .foreach(ElasticSearchOutput("localhost", 9200).apply(_).map(_ => ()))
+
       .onComplete(_ => system.shutdown())
+
+
 
     Thread.sleep(30000L)
     file.delete()

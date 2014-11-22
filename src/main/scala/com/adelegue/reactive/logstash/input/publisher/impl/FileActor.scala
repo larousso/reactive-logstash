@@ -1,20 +1,20 @@
-package com.adelegue.reactive.logstash.input.impl
+package com.adelegue.reactive.logstash.input.publisher.impl
 
-import java.io.{ RandomAccessFile, File }
+import java.io.{File, RandomAccessFile}
 import java.nio.file.StandardWatchEventKinds._
-import java.nio.file.{ WatchKey, WatchService, Path, Paths }
+import java.nio.file.{Path, Paths, WatchKey, WatchService}
 import java.util.Date
-import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor.SupervisorStrategy.Escalate
 import akka.actor._
-import akka.persistence.{SnapshotOffer, PersistentActor}
-import com.adelegue.reactive.logstash.input.impl.FileReaderActor.PositionChanged
+import akka.persistence.{PersistentActor, SnapshotOffer}
+import com.adelegue.reactive.logstash.Constants.Fields
+import com.adelegue.reactive.logstash.input.publisher.impl.FileReaderActor.PositionChanged
 import play.api.libs.json.Json
 
+import scala.collection.JavaConversions._
 import scala.concurrent.duration.DurationInt
-import collection.JavaConversions._
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 /**
  * Created by adelegue on 14/11/2014.
@@ -215,8 +215,8 @@ private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentAc
           newLines
             .map { l =>
             Json.obj(
-              "@timestamp" -> new Date().getTime,
-              "message" -> l,
+              Fields.timestamp -> new Date().getTime,
+              Fields.message -> l,
               "file" -> file.getAbsolutePath)
           }
             .foreach { line =>

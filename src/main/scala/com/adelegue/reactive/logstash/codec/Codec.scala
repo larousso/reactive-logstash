@@ -5,8 +5,8 @@ import play.api.libs.json.JsValue
 /**
  * Created by adelegue on 14/11/2014.
  */
-trait Codec[T] {
+trait Codec[I, O] {
 
-  def apply(any: T): JsValue
+  def apply(any: I): O
 
 }

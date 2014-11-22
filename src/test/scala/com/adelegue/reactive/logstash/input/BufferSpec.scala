@@ -2,7 +2,7 @@ package com.adelegue.reactive.logstash.input
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit, TestProbe}
-import com.adelegue.reactive.logstash.input.impl.BufferActor
+import com.adelegue.reactive.logstash.input.publisher.impl.BufferActor
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import play.api.libs.json.{JsObject, Json}
 

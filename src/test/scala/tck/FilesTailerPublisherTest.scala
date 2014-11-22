@@ -3,7 +3,7 @@ package tck
 import java.io.File
 
 import akka.actor.{Actor, ActorSystem, Props}
-import com.adelegue.reactive.logstash.input.FilePublisher
+import com.adelegue.reactive.logstash.input.publisher.FilePublisher
 import com.google.common.io.Files
 import org.apache.commons.io.FileUtils
 import org.reactivestreams.{Publisher, Subscriber, Subscription}
@@ -42,7 +42,7 @@ class FilesTailerPublisherTest(val system: ActorSystem, env: TestEnvironment, pu
     implicit val as = system
     val ramdom = Random.nextInt(10000)
     val fileName: String = s"test$elements-$ramdom.txt"
-    val publisher: Publisher[JsValue] = FilePublisher(folder.getAbsolutePath).withFile(fileName).publisher()
+    val publisher: Publisher[JsValue] = FilePublisher(folder.getAbsolutePath, List(fileName))
     Thread.sleep(5000L)
     val lines = (0 until elements.toInt).map(i => s"line$i").asJavaCollection
     val file: File = new File(folder.getAbsolutePath, fileName)

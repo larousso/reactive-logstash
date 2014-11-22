@@ -1,8 +1,8 @@
-package com.adelegue.reactive.logstash.input
+package com.adelegue.reactive.logstash.input.publisher
 
 import akka.actor._
-import com.adelegue.reactive.logstash.input.impl.FolderWatcherActor.FileInfo
-import com.adelegue.reactive.logstash.input.impl.{ BufferActor, BufferSubscription, BufferSubscriptionActor, FolderWatcherActor }
+import com.adelegue.reactive.logstash.input.publisher.impl.FolderWatcherActor.FileInfo
+import com.adelegue.reactive.logstash.input.publisher.impl.{BufferActor, BufferSubscription, BufferSubscriptionActor, FolderWatcherActor}
 import org.reactivestreams.Subscriber
 import play.api.libs.json.JsValue
 

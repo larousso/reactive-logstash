@@ -1,7 +1,7 @@
-package com.adelegue.reactive.logstash.input.impl
+package com.adelegue.reactive.logstash.input.publisher.impl
 
-import akka.actor.{ Actor, ActorLogging, ActorRef, Props }
-import com.adelegue.reactive.logstash.input.impl.BufferActor._
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import com.adelegue.reactive.logstash.input.publisher.impl.BufferActor._
 import play.api.libs.json.JsValue
 
 object BufferActor {
