@@ -20,6 +20,7 @@ object RedisOutput  {
 class RedisOutput(redis: Redis)(implicit ec: ExecutionContext) extends OutputSubscriber[JsValue] {
 
   override def output(message: JsValue): Future[Unit] = {
+
     redis.lPush[String]("queue", Json.stringify(message)).map(l => Unit)
   }
 }

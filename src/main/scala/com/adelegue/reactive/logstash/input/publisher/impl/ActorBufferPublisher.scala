@@ -17,10 +17,11 @@ class ActorBufferPublisher() extends ActorPublisher[JsValue] with ActorLogging {
 
   def receive = {
     case BufferActor.Entry(json) =>
-      log.debug(s"New entry $json")
+      //log.debug(s"New entry $json")
       if (buf.isEmpty && totalDemand > 0)
         onNext(json)
       else {
+        log.debug(s"To buffer ...")
         buf :+= json
         deliverBuf()
       }
@@ -38,6 +39,7 @@ class ActorBufferPublisher() extends ActorPublisher[JsValue] with ActorLogging {
   final def deliverBuf(): Unit =
     if (totalDemand > 0) {
       if (totalDemand <= Int.MaxValue) {
+        log.debug(s"Read $totalDemand from buffer ...")
         val (use, keep) = buf.splitAt(totalDemand.toInt)
         buf = keep
         use foreach onNext

@@ -21,6 +21,8 @@ libraryDependencies ++= Seq(
   "com.livestream" %% "scredis" % "2.0.5"
 )
 
+addCommandAlias("generate-project", ";update-classifiers;update-sbt-classifiers;gen-idea sbt-classifiers")
+
 scalariformSettings
 
 ScalariformKeys.preferences := ScalariformKeys.preferences.value

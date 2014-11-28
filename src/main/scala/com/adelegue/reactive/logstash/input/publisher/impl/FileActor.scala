@@ -211,7 +211,7 @@ private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentAc
           throw new IllegalStateException(message)
         case Some(reader) =>
           log.debug(s"File $file changes, reading lines from $position to ...")
-          val newLines = readFile(reader, position)
+          val newLines = readFile(reader, position, file.length())
           newLines
             .map { l =>
             Json.obj(
@@ -230,17 +230,20 @@ private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentAc
 
   }
 
-  def readFile(reader: RandomAccessFile, position: Long): List[String] = {
+  def readFile(reader: RandomAccessFile, position: Long, to: Long): List[String] = {
     reader.seek(position)
-    read(reader)
+    var currentList: List[String] = List()
+    (position to to).map(_ => reader.readLine()).filterNot(_ == null).toList
+
+    //read(reader)
   }
 
-  def read(reader: RandomAccessFile): List[String] = {
-    reader.readLine() match {
-
-      case null => List()
-
-      case line => line :: read(reader)
-    }
-  }
+//  def read(reader: RandomAccessFile): List[String] = {
+//    reader.readLine() match {
+//
+//      case null => List()
+//
+//      case line => line :: read(reader)
+//    }
+//  }
 }

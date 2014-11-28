@@ -41,6 +41,7 @@ class RedisPublisherActor(redis: Redis, buffer: ActorRef) extends Actor with Act
     case Poll =>
       redis.rPop[String]("queue").map(_.map(Json.parse)) foreach {
         case Some(json) =>
+          log.debug(s"Getting $json from REDIS")
           buffer ! BufferActor.Entry(json)
           self ! Poll
         case None =>
