@@ -1,6 +1,7 @@
 package com.adelegue.reactive.logstash.input.publisher.impl
 
 import java.io.{File, RandomAccessFile}
+import java.nio.charset.Charset
 import java.nio.file.StandardWatchEventKinds._
 import java.nio.file.{Path, Paths, WatchKey, WatchService}
 import java.util.Date
@@ -21,7 +22,7 @@ import scala.util.{Failure, Success, Try}
  */
 
 object FolderWatcherActor {
-  case class Init()
+  case object Init
   case object Run
   case object Next
   case object Process
@@ -34,7 +35,7 @@ object FolderWatcherActor {
 private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[FolderWatcherActor.FileInfo], fileReaderProvider: FileReaderActorProvider) extends Actor with ActorLogging {
 
   override def preStart(): Unit = {
-    self ! FolderWatcherActor.Init()
+    self ! FolderWatcherActor.Init
     log.debug(s"FolderWatcherActor : starting with buffer $buffer")
   }
 
@@ -45,7 +46,7 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
   override def receive: Actor.Receive = pending(folder, files)
 
   def pending(path: String, files: Seq[FolderWatcherActor.FileInfo]): Receive = {
-    case FolderWatcherActor.Init() =>
+    case FolderWatcherActor.Init =>
       val theFile: File = new File(path)
 
       if (theFile.isFile) {
@@ -233,9 +234,10 @@ private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentAc
   def readFile(reader: RandomAccessFile, position: Long, to: Long): List[String] = {
     reader.seek(position)
     var currentList: List[String] = List()
-    (position to to).map(_ => reader.readLine()).filterNot(_ == null).toList
-
-    //read(reader)
+    val text:Array[Byte] = (position until to)
+      .map{_ => reader.readByte()}
+      .toArray
+    new String(text, Charset.forName("utf-8")).split("\n").toList
   }
 
 //  def read(reader: RandomAccessFile): List[String] = {

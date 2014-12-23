@@ -11,7 +11,7 @@ import scala.util.matching.Regex
  */
 
 object MultilineFilter {
-  def apply(pattern: Regex = "".r, negate: Boolean = false, what: What = Next): () => Transformer[JsValue, JsValue] = {
+  def apply(pattern: String, negate: Boolean = false, what: What = Next): () => Transformer[JsValue, JsValue] = {
     () => new MultilineFilter(pattern, negate, what)
   }
 }
@@ -21,14 +21,14 @@ case object Previous extends What
 case object Next extends What
 
 
-class MultilineFilter(pattern: Regex, negate: Boolean, what: What) extends Transformer[JsValue, JsValue]{
+class MultilineFilter(pattern: String, negate: Boolean, what: What) extends Transformer[JsValue, JsValue]{
 
   var previousJson = Json.obj()
   var concat = false
 
   override def onNext(element: JsValue): Seq[JsValue] = {
     val line = getLine(element)
-    if(line.startsWith(" ")){
+    if(line.matches(pattern) != negate){
       val newLine = getLine(previousJson) + "\n" + line
       previousJson = previousJson.as[JsObject] ++ Json.obj("message" -> newLine)
       concat = true
