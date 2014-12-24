@@ -2,26 +2,34 @@ package com.adelegue.reactive.logstash.input.publisher.impl
 
 import akka.actor._
 import akka.stream.actor.ActorPublisher
+import com.adelegue.reactive.logstash.input.publisher.Messages
 import play.api.libs.json.JsValue
 
 import scala.annotation.tailrec
 
 object ActorBufferPublisher {
-  def props() = Props(classOf[ActorBufferPublisher])
+  def props(ref: ActorRef) = Props(classOf[ActorBufferPublisher], ref)
 }
 
-class ActorBufferPublisher() extends ActorPublisher[JsValue] with ActorLogging {
+class ActorBufferPublisher(ref: ActorRef) extends ActorPublisher[JsValue] with ActorLogging {
   import akka.stream.actor.ActorPublisherMessage._
 
   var buf = Vector.empty[JsValue]
 
-  def receive = {
+  def receive = pending
+
+  def pending : Actor.Receive = {
+    case Request(req) =>
+      ref ! Messages.Init(self)
+      context.become(running)
+  }
+
+  def running : Actor.Receive = {
     case BufferActor.Entry(json) =>
-      //log.debug(s"New entry $json")
       if (buf.isEmpty && totalDemand > 0)
         onNext(json)
       else {
-        log.debug(s"To buffer ...")
+        log.debug(s"To buffer $json")
         buf :+= json
         deliverBuf()
       }
@@ -34,6 +42,7 @@ class ActorBufferPublisher() extends ActorPublisher[JsValue] with ActorLogging {
     case msg =>
       log.debug(s"Non handled message $msg")
   }
+
 
   @tailrec
   final def deliverBuf(): Unit =

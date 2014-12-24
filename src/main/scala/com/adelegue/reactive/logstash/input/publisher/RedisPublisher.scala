@@ -17,27 +17,31 @@ object RedisPublisher {
 
   case object Poll
 
-  def props(redis: Redis, buffer: ActorRef) = Props(classOf[RedisPublisherActor], redis, buffer)
+  def props(redis: Redis) = Props(classOf[RedisPublisherActor], redis)
 
   def apply()(implicit actorSystem: ActorSystem): Publisher[JsValue] = apply(Redis())(actorSystem)
 
   def apply(redis: Redis)(implicit actorSystem: ActorSystem): Publisher[JsValue] = {
-    val buffer = actorSystem.actorOf(ActorBufferPublisher.props())
-    actorSystem.actorOf(RedisPublisher.props(redis, buffer))
+    val ref = actorSystem.actorOf(RedisPublisher.props(redis))
+    val buffer = actorSystem.actorOf(ActorBufferPublisher.props(ref))
     ActorPublisher[JsValue](buffer)
   }
 
 }
 
-class RedisPublisherActor(redis: Redis, buffer: ActorRef) extends Actor with ActorLogging {
+class RedisPublisherActor(redis: Redis) extends Actor with ActorLogging {
 
   implicit val ec = context.dispatcher
 
-  override def preStart(): Unit = {
-    self ! Poll
+  def receive = pending
+
+  def pending: Actor.Receive = {
+    case Messages.Init(buffer) =>
+      context.become(running(buffer))
+      self ! Poll
   }
 
-  def receive = {
+  def running(buffer: ActorRef): Actor.Receive = {
     case Poll =>
       redis.rPop[String]("queue").map(_.map(Json.parse)) foreach {
         case Some(json) =>
@@ -47,7 +51,6 @@ class RedisPublisherActor(redis: Redis, buffer: ActorRef) extends Actor with Act
         case None =>
           retryLater()
       }
-
   }
 
   def retryLater(): Unit = {

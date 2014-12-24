@@ -10,6 +10,7 @@ import akka.actor.SupervisorStrategy.Escalate
 import akka.actor._
 import akka.persistence.{PersistentActor, SnapshotOffer}
 import com.adelegue.reactive.logstash.Constants.Fields
+import com.adelegue.reactive.logstash.input.publisher.Messages
 import com.adelegue.reactive.logstash.input.publisher.impl.FileReaderActor.PositionChanged
 import play.api.libs.json.Json
 
@@ -22,22 +23,17 @@ import scala.util.{Failure, Success, Try}
  */
 
 object FolderWatcherActor {
-  case object Init
   case object Run
   case object Next
   case object Process
   case object Stop
   case class FileInfo(expression: String)
 
-  def props(buffer: ActorRef, folder: String, files: Seq[FolderWatcherActor.FileInfo]) = Props(classOf[FolderWatcherActor], buffer, folder, files, FileReaderActor)
+  def props(folder: String, files: Seq[FolderWatcherActor.FileInfo]) = Props(classOf[FolderWatcherActor], folder, files, FileReaderActor)
 }
 
-private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[FolderWatcherActor.FileInfo], fileReaderProvider: FileReaderActorProvider) extends Actor with ActorLogging {
+private class FolderWatcherActor(folder: String, files: Seq[FolderWatcherActor.FileInfo], fileReaderProvider: FileReaderActorProvider) extends Actor with ActorLogging {
 
-  override def preStart(): Unit = {
-    self ! FolderWatcherActor.Init
-    log.debug(s"FolderWatcherActor : starting with buffer $buffer")
-  }
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minute) {
     case _ => Escalate
@@ -46,20 +42,20 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
   override def receive: Actor.Receive = pending(folder, files)
 
   def pending(path: String, files: Seq[FolderWatcherActor.FileInfo]): Receive = {
-    case FolderWatcherActor.Init =>
+    case Messages.Init(buffer) =>
       val theFile: File = new File(path)
 
       if (theFile.isFile) {
         log.debug(s"Watching single file : ${theFile.getAbsolutePath}")
-        context.become(watchFiles(Paths.get(theFile.getParent), fileHandled(Seq(FolderWatcherActor.FileInfo(theFile.getName)))))
+        context.become(watchFiles(buffer, Paths.get(theFile.getParent), fileHandled(Seq(FolderWatcherActor.FileInfo(theFile.getName)))))
       } else {
         files match {
           case Nil | Seq() =>
             log.debug(s"Watching all the folder : ${theFile.getAbsolutePath}")
-            context.become(watchFiles(Paths.get(path), fileHandled(Seq(FolderWatcherActor.FileInfo(".*")))))
+            context.become(watchFiles(buffer, Paths.get(path), fileHandled(Seq(FolderWatcherActor.FileInfo(".*")))))
           case _ =>
             log.debug(s"Watching $files in the folder : ${theFile.getAbsolutePath}")
-            context.become(watchFiles(Paths.get(path), fileHandled(files)))
+            context.become(watchFiles(buffer, Paths.get(path), fileHandled(files)))
         }
         self ! FolderWatcherActor.Run
       }
@@ -74,7 +70,7 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
     testFilename
   }
 
-  def watchFiles(folder: Path, handled: String => Boolean): Receive = {
+  def watchFiles(buffer: ActorRef, folder: Path, handled: String => Boolean): Receive = {
 
     case FolderWatcherActor.Run =>
       log.debug(s"Starting the watcher background task ")
@@ -82,7 +78,7 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
 
         case Success(watcher) =>
           folder.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY)
-          context.become(running(watcher, folder, handled))
+          context.become(running(buffer, watcher, folder, handled))
           self ! FolderWatcherActor.Next
 
         case Failure(e) =>
@@ -91,14 +87,14 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
       }
   }
 
-  def running(watcher: WatchService, folder: Path, handled: String => Boolean): Receive = {
+  def running(buffer: ActorRef, watcher: WatchService, folder: Path, handled: String => Boolean): Receive = {
 
     case FolderWatcherActor.Next =>
       implicit val ctx = context.system.dispatcher
       context.system.scheduler.scheduleOnce(500 millisecond, self, FolderWatcherActor.Process)(ctx)
 
     case FolderWatcherActor.Process =>
-      pollEvents(watcher, folder, handled)
+      pollEvents(buffer, watcher, folder, handled)
       self ! FolderWatcherActor.Next
 
     case FolderWatcherActor.Stop =>
@@ -117,7 +113,7 @@ private class FolderWatcherActor(buffer: ActorRef, folder: String, files: Seq[Fo
     ref
   }
 
-  private def pollEvents(watcher: WatchService, folder: Path, handled: String => Boolean): Unit = {
+  private def pollEvents(buffer: ActorRef, watcher: WatchService, folder: Path, handled: String => Boolean): Unit = {
     val key: WatchKey = watcher.poll() // blocks
     if (key != null) {
       key.pollEvents().groupBy(e => (e.kind(), e.context().toString)).foreach { event =>
@@ -240,12 +236,4 @@ private class FileReaderActor(buffer: ActorRef, file: File) extends PersistentAc
     new String(text, Charset.forName("utf-8")).split("\n").toList
   }
 
-//  def read(reader: RandomAccessFile): List[String] = {
-//    reader.readLine() match {
-//
-//      case null => List()
-//
-//      case line => line :: read(reader)
-//    }
-//  }
 }

@@ -9,35 +9,9 @@ import play.api.libs.json.JsValue
 
 object FilePublisher {
 
-  def apply(path: String, files: List[String], bufferSize: Int = 500, multipleSubscriber: Boolean = false)(implicit actorSystem: ActorSystem): Publisher[JsValue] = {
-    if (multipleSubscriber) {
-      FilePublisherMultipleSubscriber(actorSystem, path, files.map(FileInfo), bufferSize)
-    } else {
-      FilePublisherOneSubscriber(actorSystem, path, files.map(FileInfo), bufferSize)
-    }
-  }
-}
-
-
-object FilePublisherOneSubscriber{
-  def apply(actorSystem: ActorSystem, path: String, files: List[FileInfo], bufferSize: Int): Publisher[JsValue] = {
-    val ref = actorSystem.actorOf(ActorBufferPublisher.props())
-    actorSystem.actorOf(FolderWatcherActor.props (ref, path, files))
-    ActorPublisher[JsValue] (ref)
-  }
-}
-
-object FilePublisherMultipleSubscriber {
-  def apply(actorSystem: ActorSystem, path: String, files: List[FileInfo], bufferSize: Int): Publisher[JsValue] = {
-    new FilePublisherMultipleSubscriber(actorSystem, path, files, bufferSize)
-  }
-}
-
-class FilePublisherMultipleSubscriber(actorSystem: ActorSystem, path: String, files: List[FileInfo], bufferSize: Int) extends Publisher[JsValue] {
-
-  val actor = actorSystem.actorOf(FilePublisherMultiSubscriberActor.props(path, files, bufferSize))
-
-  override def subscribe(subscriber: Subscriber[_ >: JsValue]): Unit = {
-    actor ! FilePublisherMultiSubscriberActor.Subscribe(subscriber)
+  def apply(path: String, files: List[String], bufferSize: Int = 500)(implicit actorSystem: ActorSystem): Publisher[JsValue] = {
+    val fileRef = actorSystem.actorOf(FolderWatcherActor.props (path, files.map(FileInfo)))
+    val publisherRef = actorSystem.actorOf(ActorBufferPublisher.props(fileRef))
+    ActorPublisher[JsValue] (publisherRef)
   }
 }
