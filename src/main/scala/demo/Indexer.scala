@@ -14,12 +14,12 @@ object Indexer {
   val DATE_ISO = s"(\\d{4}\\-\\d{2}\\-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3})"
   val LOG_LEVEL = "(DEBUG|INFO|WARNING|ERROR)"
   val WORD = "(\\w+)"
-  val NUMBER = "(\\d+\\.\\d+)"
+  val NUMBER = "(\\-?\\d+\\.\\d+)"
   val INTEGER = "(\\d+)"
   val DATE = "(\\d{2}\\-\\d{2}\\-\\d{4})"
   val NOTSPACE = "(\\S+)"
   val DATA = "(.*)"
-  val pattern = s"^(?s)$DATE_ISO \\- \\[$LOG_LEVEL\\] \\- from $WORD in $NOTSPACE message numéro $INTEGER current time $DATE, bois : $NOTSPACE, coord : \\[$NUMBER, $NUMBER\\] $DATA$$".r
+  val pattern = s"^(?s)$DATE_ISO \\- \\[$LOG_LEVEL\\] \\- from $WORD in $NOTSPACE message numéro $INTEGER current time $DATE, bois : $NOTSPACE, coord : \\[$NUMBER, $NUMBER\\]$DATA$$".r
 
 
   def main(args: Array[String]) {
@@ -41,8 +41,7 @@ object Indexer {
                 "messageNum" -> messageNum.toInt,
                 "messageDate" -> messageDate,
                 "wood" -> wood,
-                "coord" -> Json.obj("lat" -> lat, "lng" -> long),
-                "message" -> message
+                "coord" -> Json.obj("lat" -> lat, "lng" -> long)
               )
           case _ => json
         }
